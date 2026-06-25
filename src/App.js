@@ -1,42 +1,147 @@
 import { useState } from "react";
 
-const teams = [
-  "Adelaide", "Brisbane Lions", "Brisbane Bears", "Carlton", "Collingwood",
-  "Essendon", "Fitzroy", "Fremantle", "Geelong",
-  "Hawthorn", "Melbourne", "North Melbourne",
-  "Richmond", "St Kilda", "Sydney", "West Coast",
-  "Western Bulldogs"
-];
+import Header from "./components/ui/Header";
+import ModeSelector from "./components/ui/ModeSelector";
+import SettingsPanel from "./components/ui/SettingsPanel";
 
-const eras = ["1960s", "1970s", "1980s", "1990s", "2000s", "2010s", "2020s"];
+import Wheel, { spin } from "./components/input/Wheel";
+import PlayerSelector from "./components/input/PlayerSelector";
 
-function spin() {
-  const team = teams[Math.floor(Math.random() * teams.length)];
-  const era = eras[Math.floor(Math.random() * eras.length)];
-  return { team, era };
-}
+import CoachBadge from "./components/team/CoachBadge";
+import RosterBuilder from "./components/team/RosterBuilder";
 
-export default function App() {
+import { simulateSeason } from "./logic/simulation";
+
+import ResultsPanel from "./components/results/ResultsPanel";
+import SeasonSummary from "./components/results/SeasonSummary";
+import TeamRatingMeter from "./components/results/TeamRatingMeter";
+
+import { calculateCoachRating } from "./logic/coachRating";
+import { calculateTeamStrength } from "./logic/statsEngine";
+
+function App() {
+  const [team, setTeam] = useState(null);
+  const [era, setEra] = useState(null);
+
+  const [mode, setMode] = useState("CLASSIC_22");
+  const [settings, setSettings] = useState({
+    showStats: true,
+    difficulty: "NORMAL"
+  });
+
+  const [players, setPlayers] = useState([]);
+  const [coach, setCoach] = useState(null);
+
   const [result, setResult] = useState(null);
+  const [seasonResult, setSeasonResult] = useState(null);
+
+  // 🎡 Spin wheel
+  function handleSpin() {
+    const res = spin();
+    setTeam(res.team);
+    setEra(res.era);
+  }
+
+  // 🧑‍🤝‍🧑 Update squad
+  function handleRosterUpdate(updatedPlayers) {
+    setPlayers(updatedPlayers);
+  }
+
+  // 🧑‍🏫 Select coach (placeholder hook)
+  function handleCoachSelect(selectedCoach) {
+    setCoach(selectedCoach);
+  }
+
+  // ⚙️ Run simulation
+  function handleSimulate() {
+    const season = simulateSeason({
+      players,
+      coach,
+      difficulty: settings.difficulty
+    });
+
+    setSeasonResult(season);
+    setResult(season);
+  }
+
+  const coachRating = calculateCoachRating(coach);
+
+  const teamStrength = calculateTeamStrength({
+    players,
+    roles: players.map(() => "UTIL"),
+    era: era || "2000s"
+  });
 
   return (
-    <div style={{ padding: 30, fontFamily: "Arial" }}>
-      <h1>26-0 AFL Simulator</h1>
+    <div>
+      {/* 🧭 Header */}
+      <Header
+        team={team}
+        era={era}
+        mode={mode}
+        onReset={() => {
+          setTeam(null);
+          setEra(null);
+          setPlayers([]);
+          setCoach(null);
+          setResult(null);
+        }}
+      />
 
-      <button
-        onClick={() => setResult(spin())}
-        style={{ fontSize: 18, padding: 10 }}
-      >
-        Spin 🎰
-      </button>
+      {/* ⚙️ Settings */}
+      <SettingsPanel onSettingsChange={setSettings} />
 
+      {/* 🎮 Mode */}
+      <ModeSelector onChange={setMode} />
+
+      {/* 🎡 Wheel */}
+      <Wheel onSpin={handleSpin} />
+
+      {/* 🧑‍🏫 Coach */}
+      {coach && <CoachBadge coach={coach} />}
+
+      {/* 🧑‍🤝‍🧑 Players */}
+      <PlayerSelector
+        players={[]} // plug JSON here later
+        team={team}
+        era={era}
+        onChange={handleRosterUpdate}
+      />
+
+      {/* 🧾 Roster */}
+      <RosterBuilder
+        players={players}
+        mode={mode}
+        onUpdate={handleRosterUpdate}
+      />
+
+      {/* 🏉 Team Rating */}
+      <TeamRatingMeter
+        rating={teamStrength + coachRating}
+      />
+
+      {/* ⚙️ Simulate */}
+      <div style={{ marginTop: 20, textAlign: "center" }}>
+        <button onClick={handleSimulate}>
+          Run Season Simulation 🏆
+        </button>
+      </div>
+
+      {/* 🏆 Results */}
       {result && (
-        <div style={{ marginTop: 20 }}>
-          <h2>Result:</h2>
-          <p>Team: {result.team}</p>
-          <p>Era: {result.era}</p>
-        </div>
+        <>
+          <ResultsPanel result={result} />
+
+          <SeasonSummary
+            result={seasonResult}
+            team={team}
+            era={era}
+            mode={mode}
+          />
+        </>
       )}
     </div>
   );
 }
+
+export default App;
